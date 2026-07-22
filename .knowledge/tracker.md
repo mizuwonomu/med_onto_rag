@@ -14,3 +14,14 @@
 - **Unused deps `pymupdf`/`fitz`** left in `pyproject.toml` from the dropped word-level spike.
 - **`tests/` is gitignored** — the 51 tests will not be committed as currently configured.
 - **Detector/head-tail markers are Vietnamese-corpus-specific regexes** — brittle if the PDF edition or wording changes.
+
+## RxNORM-etl Parser
+
+- Date: 2026-07-08
+- `rxnorm-etl: IN PROGRESS -> features/rxnorm-etl/log.md`
+- **Known limitations / debt left open:**
+    - The brand→generic join in `export_brand_jsonl.sql` has **no `rela` filter**. It matches on `rxcui1` alone and therefore pulls in every relation type, including `has_dose_form`, `consists_of`, and others that are not ingredient relations. Recall is inflated and precision is unquantified. The user planned to run a survey query over actual `rela` values before deciding the filter; that survey has not been run, so the export currently in hand should be treated as provisional.
+    - `resolve_min` is untested end-to-end. No multi-ingredient brand has been verified as emitting a populated `resolve_min` alongside its `resolve_in`.
+    - Single-hop traversal only. Brands reachable from their ingredients only through an intermediate concept are dropped silently, with no logging or count of exclusions.
+    - Alias docs may duplicate per brand concept (multiple `b_<rxaui>` rows for one brand). The duplication rate has not been measured, and no decision has been made on whether it degrades retrieval.
+    - No provenance is recorded for the RxNorm release version used, despite `rela` vocabulary and `suppress` flags being version-dependent.
