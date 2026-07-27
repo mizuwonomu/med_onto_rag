@@ -20,3 +20,13 @@ COLUMN_GAP_THRESHOLD_RATIO = 0.05 #tính trên 5% của mật độ từ đông 
 # Chiều cao vùng footer (điểm PDF) cắt bỏ từ đáy trang để loại số trang "- N -"
 # vốn nằm đè lên khe giữa hai cột
 FOOTER_MARGIN = 45.0
+
+# Vector index (index/)
+ICD_JSONL_PATH = ICD_OUTPUT_PATH  # semantic alias for the read side
+RXNORM_CONCEPTS_PATH = Path("data/processed/rxnorm_concepts.jsonl")
+RXNORM_ALIASES_PATH = Path("data/processed/rxnorm_aliases.jsonl")
+ICD_DB_DIR = Path("data/index/icd_db")
+RXNORM_DB_DIR = Path("data/index/rxnorm_db")
+EMBEDDING_MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
+EMBED_BATCH_SIZE = 64  # GPU encode batch
+CHROMA_ADD_BATCH = 1024  # add_documents batch into Chroma

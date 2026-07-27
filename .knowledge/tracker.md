@@ -25,3 +25,20 @@
     - Single-hop traversal only. Brands reachable from their ingredients only through an intermediate concept are dropped silently, with no logging or count of exclusions.
     - Alias docs may duplicate per brand concept (multiple `b_<rxaui>` rows for one brand). The duplication rate has not been measured, and no decision has been made on whether it degrades retrieval.
     - No provenance is recorded for the RxNorm release version used, despite `rela` vocabulary and `suppress` flags being version-dependent.
+
+## Vector index
+
+- Date: 2026-07-27
+- `vector_index: DONE -> features/vector_index/log.md`
+- Scope this session: load + ingest only. Retrieval / BM25 / hybrid / reranker are NOT built yet.
+
+**Known limitations / debt left open:**
+
+- **One-shot full rebuild only.** Every `build_vector` run `rmtree`s the persist dir and re-encodes the entire KB. No incremental update; when the KB grows large, re-encoding cost is the trigger to add one.
+- **`SharedSystemClient.clear_system_cache()` is process-global, not path-scoped.** It is only safe because `ingest_collection` is called sequentially (icd then rxnorm). Parallel/concurrent ingestion in one process would clear each other's clients and break.
+- **`sanity_check_asymmetry` is a shallow check.** It uses a single hardcoded Vietnamese sample and only proves "query != document + norm ~ 1.0". It catches a missing prompt, not deeper encoding regressions.
+- **`ingest_collection` reads `store._collection.count()`** — private langchain-chroma internals. Fragile if the wrapper's attribute layout changes.
+- **CPU fallback is silent.** On a CUDA-less machine `build_embeddings` quietly builds a CPU index (correct but very slow) with no warning — fine for tests, a footgun for a real run on the wrong host.
+- **No provenance recorded** for the embedding model version or index build (mirrors the RxNorm gap).
+- **`tests/index/` is gitignored** (same repo-wide `tests/` ignore as the ICD suite) — the 5 new smoke tests will not be committed as currently configured.
+- **ICD debt flags flow into metadata unacted-on:** `vi_glyph_ok=False` records and English-fallback rows are embedded as-is; no per-record quality gate at ingest time.
