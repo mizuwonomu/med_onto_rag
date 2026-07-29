@@ -42,3 +42,25 @@
 - **No provenance recorded** for the embedding model version or index build (mirrors the RxNorm gap).
 - **`tests/index/` is gitignored** (same repo-wide `tests/` ignore as the ICD suite) — the 5 new smoke tests will not be committed as currently configured.
 - **ICD debt flags flow into metadata unacted-on:** `vi_glyph_ok=False` records and English-fallback rows are embedded as-is; no per-record quality gate at ingest time.
+## Retrieval layer
+
+- Date: 2026-07-29
+- `retrieval: DONE (2026-07-29) -> features/retrieval/log.md`
+- RxNorm thresholds frozen; ICD thresholds tentative. Scope: retrieval + threshold calibration only. Not yet wired to NER.
+
+**Known limitations / debt left open:**
+
+- **Every number here is measured on synthetic data only.** All thresholds, recall figures and score distributions come from 399 LLM-generated rows; nothing has been validated against a real clinical note or against real NER output. Real mentions bring span-boundary errors, multi-concept spans and a different distribution — none of which the synthetic set simulates. The first genuine validation is the organizer's test set, and a drop there should be read as scope, not regression. RxNorm is the partial exception: its `margin = 0` follows from the KB structure (one alias expands to the full RXCUI set), which synthetic data confirmed rather than established.
+- **ICD thresholds are not trustworthy for production.** sweep-dev = +0.104 (sweep 0.636 vs dev 0.532) — the ICD pair fits the tuning split better than unseen data. Bootstrap is stable, so this is not sampling noise in the threshold itself.
+- **The ICD reranker cannot separate siblings.** distractor p75 (3.477) exceeds gold p25 (3.156): the distributions overlap mid-scale, where no floor can cut. Worst clusters by name: `ICD_Malnutrition_Severe` (median gap 0.203), `ICD_Paralysis_Tetraplegia` (0.387, 3 of 6 rows rank a distractor above gold), `Rx_Ear_Drops_Cortisporin` (0.023). **Adding synthetic data will not fix this** — untried directions are a larger reranker (Qwen3-Reranker-4B) or feeding ICD block information into the doc text given to the reranker.
+- **`multi_sibling` recall is 0.860 and did not move** between the dirty and clean datasets — the weakest group, and it is a retrieval-stage loss, not a threshold one.
+- **The hybrid tokenizer variant was never measured.** Indexing both whitespace tokens and segmented compounds (`[viêm, cầu, thận, viêm_cầu_thận]`) is additive and cheap, but was deprioritized behind the reranker bottleneck. The original docstring claim that Vietnamese segmenters are "brittle on medical terminology" was an **untested assumption** and has been softened.
+- **Near-miss validation is ontology-only.** The gate accepts a distractor if it shares an ICD block or a `resolve_in` group. Purely lexical near-misses (`dexamethasone` vs `dexmedetomidine`) are unchecked, because a deterministic test would require the gate to load the BM25 index and stop being a pure-data script. Consequently the distractor set may under-represent the hardest real-world case.
+- **The distractor label in the dump is not typed.** Ontology-neighbour and lexical-neighbour distractors are pooled, so "which kind of confusion does the reranker actually lose to" is currently unanswerable.
+- **`scripts/retrieval/common.py` `dedupe_records` is a workaround for a data defect**, kept as a default-on safety net. It hides duplicates rather than preventing them; the generator is the correct place to enforce uniqueness.
+- **Plot histograms use `density=True`**, which normalizes each label group independently and makes gold/distractor bar heights visually incomparable. This already caused one misreading of the score distribution. Switching to counts would be clearer.
+- **`TOP_K_DENSE` / `TOP_K_BM25` = 30 were never swept.** The values are inherited from the plan; recall@union may be cheaply improvable by raising them, at the cost of reranker time.
+- **The reranker instruction was frozen without ablation.** It is a single hand-written sentence; no alternative was measured, so its contribution to the score distribution is unknown.
+- **`dense_search` is not a `Runnable`**, so the dense branch cannot be dropped into an LCEL chain as-is. Deliberate (see `decisions.md`), but it is a real constraint the NER integration will meet.
+- **`tests/retrieval/` is gitignored** (repo-wide `tests/` ignore, same as the ICD and index suites) — the 69 new tests will not be committed as configured.
+- **No provenance recorded** for the reranker model revision or the BM25 index build, mirroring the same gap already open for RxNorm and the vector index.

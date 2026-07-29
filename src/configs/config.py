@@ -51,6 +51,12 @@ EVAL_OUTPUT_DIR = Path("data/eval/retrieval")
 # CHỈ có nghĩa với reranker + instruction hiện tại (retrieval/reranker.py). Đổi
 # model hoặc sửa một chữ trong instruction là đổi thang điểm -> phải sweep lại.
 #
+# PHẠM VI ĐO: toàn bộ các số dưới đây hiệu chỉnh trên 399 dòng SYNTHETIC do LLM
+# sinh (data/test/, xem SYNTHETIC_EVAL_PATH), CHƯA hề thấy bệnh án thật và chưa
+# nối với NER. Mention thật sẽ có lỗi biên, nhiều khái niệm trong một span, và
+# phân bố khác - đó là những thứ tập synthetic không mô phỏng được. Coi đây là
+# điểm khởi đầu có căn cứ, không phải ngưỡng đã nghiệm thu.
+#
 # rxnorm: CHỐT. margin=0 tái lập qua 2 vòng đo độc lập, và nó đúng vì lý do CẤU
 #   TRÚC chứ không phải thống kê: một alias doc mở thẳng ra trọn bộ RXCUI qua
 #   resolve_in, nên doc hạng 1 đã phủ hết gold (multi_solving recall = 1.000).

@@ -20,7 +20,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-DEFAULT_INPUT = Path("data/test/rxnorm_icd_synthetic_400-v3.jsonl")
+DEFAULT_INPUT = Path("data/test/rxnorm_icd_synthetic_400.jsonl")
 
 MULTI_KIND_BY_KB = {
     "icd": "multi_sibling",
