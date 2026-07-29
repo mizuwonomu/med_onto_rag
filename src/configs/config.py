@@ -40,3 +40,35 @@ TOP_K_DENSE = 30
 TOP_K_BM25 = 30
 SYNTHETIC_EVAL_PATH = Path("data/test/rxnorm_icd_synthetic_400-labeled.jsonl")
 EVAL_OUTPUT_DIR = Path("data/eval/retrieval")
+
+# Ngưỡng floor/margin + biến thể query, TÁCH RIÊNG THEO KB.
+#
+# Tách theo KB không phải để cho gọn: điểm reranker của hai KB không nằm trên
+# cùng một thang (mô tả chẩn đoán dài vs tên hoạt chất ngắn), nên một cặp ngưỡng
+# chung luôn phải hy sinh một bên. Biến thể query cũng hoá ra phải tách nốt - đo
+# trên 399 dòng cho thấy mỗi KB thắng ở một biến thể khác nhau.
+#
+# CHỈ có nghĩa với reranker + instruction hiện tại (retrieval/reranker.py). Đổi
+# model hoặc sửa một chữ trong instruction là đổi thang điểm -> phải sweep lại.
+#
+# rxnorm: CHỐT. margin=0 tái lập qua 2 vòng đo độc lập, và nó đúng vì lý do CẤU
+#   TRÚC chứ không phải thống kê: một alias doc mở thẳng ra trọn bộ RXCUI qua
+#   resolve_in, nên doc hạng 1 đã phủ hết gold (multi_solving recall = 1.000).
+#   floor hội tụ 2.021 -> 2.157 giữa hai vòng, bootstrap 300/300 lần ra cùng một
+#   giá trị, chênh lệch sweep-dev +0.0004. Biến thể strip_dose thắng vì liều/
+#   đường dùng/tần suất ("625mg", "po", "bid") không hề có trong text KB ở mức
+#   ingredient - giữ lại chỉ làm nhiễu.
+#
+# icd: TẠM. Nút thắt là RERANKER, không phải cỡ mẫu - thêm data synthetic sẽ chỉ
+#   cho một con số floor chính xác hơn về cùng một hiệu năng kém. Bằng chứng:
+#   distractor p75 (3.477) CAO HƠN gold p25 (3.156), tức hai phân bố chồng nhau ở
+#   giữa thang chứ không phải ở đuôi; không floor nào cắt được vùng đó. Bootstrap
+#   đã ổn định ([1.490, 1.890], vòng trước là [0.014, 3.807] khi chỉ có 10 cụm)
+#   nên vấn đề còn lại không nằm ở việc chia tập. Hướng gỡ: reranker lớn hơn, hoặc
+#   đưa tín hiệu block ICD vào text cấp cho reranker để tách sibling.
+#   Biến thể raw thắng vì mention chẩn đoán không có liều - strip_dose chỉ có cơ
+#   hội cắt nhầm (bootstrap floor nới ra [-0.906, 1.890]).
+RETRIEVAL_THRESHOLDS = {
+    "icd": {"floor": 1.490, "margin": 0.399, "query_variant": "raw", "status": "tentative"},
+    "rxnorm": {"floor": 2.157, "margin": 0.0, "query_variant": "strip_dose", "status": "frozen"},
+}
