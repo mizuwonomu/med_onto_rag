@@ -30,3 +30,13 @@ RXNORM_DB_DIR = Path("data/index/rxnorm_db")
 EMBEDDING_MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
 EMBED_BATCH_SIZE = 64  # GPU encode batch
 CHROMA_ADD_BATCH = 1024  # add_documents batch into Chroma
+
+# Retrieval layer (retrieval/)
+BM25_ICD_DIR = Path("data/index/bm25_icd")
+BM25_RXNORM_DIR = Path("data/index/bm25_rxnorm")
+RERANKER_MODEL_NAME = "Qwen/Qwen3-Reranker-0.6B"
+# k mỗi nhánh trước khi hợp nhất (union) rồi đưa toàn bộ qua reranker
+TOP_K_DENSE = 30
+TOP_K_BM25 = 30
+SYNTHETIC_EVAL_PATH = Path("data/test/rxnorm_icd_synthetic_400-labeled.jsonl")
+EVAL_OUTPUT_DIR = Path("data/eval/retrieval")
