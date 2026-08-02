@@ -8,3 +8,6 @@ __pycache__
 
 #test cases
 tests/
+
+#handoff knowledge - cross session conversations
+.knowledge/handoffs
