@@ -79,3 +79,24 @@ RETRIEVAL_THRESHOLDS = {
     "icd": {"floor": 1.490, "margin": 0.399, "query_variant": "raw", "status": "tentative"},
     "rxnorm": {"floor": 2.157, "margin": 0.0, "query_variant": "strip_dose", "status": "frozen"},
 }
+
+# NER extraction layer (extract/)
+#
+# Mô hình chạy tự host bằng llama.cpp (llama-server)
+NER_LLM_HF_REPO = "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
+NER_LLM_BASE_URL = "http://127.0.0.1:8080/v1"
+NER_LLM_TEMPERATURE = 0.0  # trích xuất là tác vụ tất định, không sampling
+NER_LLM_MAX_TOKENS = 2048 #max completion tokens
+NER_LLM_REPEAT_PENALTY = 1.05 #penalty cho các token lặp lại
+NER_LLM_REPEAT_LAST_N = 256 #số token nhìn lại 
+# Trần số khái niệm mỗi document, ép ở tầng GRAMMAR (extract/schema.py dịch nó
+# thành `maxItems` -> GBNF). Đây là thứ DUY NHẤT khiến grammar tự đóng mảng khi
+# model kẹt trong vòng lặp thoái hoá - max_tokens chỉ giới hạn thiệt hại, không
+# ngăn được vòng lặp.
+#
+# 60: document dày nhất trong tập synthetic có 15 khái niệm; bệnh án thật của BTC
+# dài gấp ~7 lần nên để rộng gấp 4. Chạm trần là DẤU HIỆU BẤT THƯỜNG (nhiều khả
+# năng đang lặp), không phải giới hạn cần nới - đọc output trước khi tăng.
+MAX_ENTITIES_PER_DOC = 60
+NER_SYNTHETIC_PATH = Path("data/test/ner/input_synthetic_10.jsonl")
+NER_EVAL_OUTPUT_DIR = Path("data/eval/ner")
