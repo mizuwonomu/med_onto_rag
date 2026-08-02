@@ -23,6 +23,8 @@ khi tin vào bất kỳ con số nào đo được.
 
 from __future__ import annotations
 
+import logging
+
 from langchain_core.runnables import Runnable
 
 from configs.config import (
@@ -34,6 +36,55 @@ from configs.config import (
 )
 from extract.prompt import build_prompt, prompt_is_filled
 from extract.schema import NerOutput
+
+logger = logging.getLogger(__name__)
+
+
+class PreflightError(RuntimeError):
+    """Chain không gọi được LLM - kèm sẵn các nguyên nhân đã gặp thật."""
+
+
+def preflight(ner_chain, probe: str = "Bệnh nhân sốt cao, không ho.") -> int:
+    """Gọi LLM một phát trên câu ngắn. Trả số khái niệm bắt được.
+
+    VÌ SAO ĐỨNG RIÊNG, VÀ VÌ SAO PHẢI GỌI TRƯỚC KHI NẠP GPU
+    -------------------------------------------------------
+    `linker.build_backends()` nạp embedding + reranker mất hàng phút. Gọi LLM sau
+    bước đó nghĩa là mọi lỗi phía server - thinking mode ăn hết token, chat
+    template chặn, server chưa bật, context tràn - đều bắt người chạy chờ trọn
+    thời gian nạp GPU rồi mới được thấy. Trong một vòng lặp sửa-thử, cái giá đó
+    cộng dồn rất nhanh.
+
+    Câu thử cố tình ngắn và có 2 khái niệm hiển nhiên, nên nó cũng là kiểm tra
+    tỉnh táo: trả về rỗng ở đây là dấu hiệu prompt hoặc grammar hỏng.
+
+    Ném `PreflightError` chứ KHÔNG `SystemExit`: đây là thư viện, việc quyết định
+    thoát tiến trình hay thử lại thuộc về script gọi nó.
+    """
+    logger.info("preflight: thử gọi LLM trên câu ngắn...")
+    try:
+        out = ner_chain.invoke({"input_text": probe})
+    except Exception as e:
+        raise PreflightError(
+            f"{type(e).__name__}: {e}\n"
+            "  - LengthFinishReasonError -> HAI nguyên nhân khác nhau:\n"
+            "      (a) prompt_tokens + max_tokens > -c của server. llama-server\n"
+            "          tính CẢ HAI vào cùng một context window. Hạ\n"
+            "          NER_LLM_MAX_TOKENS trong config.py, hoặc tăng LLAMA_CTX.\n"
+            "      (b) model kẹt vòng lặp thoái hoá / thinking mode chưa tắt.\n"
+            "          Dấu hiệu (b): content rỗng nhưng reasoning_content dài.\n"
+            "  - Connection refused    -> server chưa chạy\n"
+            "  - 400 Jinja/template    -> chat template chặn, xem build_prompt()"
+        ) from e
+
+    entities = out.entities if hasattr(out, "entities") else out["entities"]
+    logger.info("preflight OK: %d khái niệm từ câu thử", len(entities))
+    if not entities:
+        logger.warning(
+            "preflight trả RỖNG trên câu có 2 khái niệm hiển nhiên - kiểm lại "
+            "prompt và grep log server tìm `failed to parse grammar`"
+        )
+    return len(entities)
 
 
 def build_ner_chain(
