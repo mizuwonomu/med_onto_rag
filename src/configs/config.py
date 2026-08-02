@@ -35,6 +35,7 @@ CHROMA_ADD_BATCH = 1024  # add_documents batch into Chroma
 BM25_ICD_DIR = Path("data/index/bm25_icd")
 BM25_RXNORM_DIR = Path("data/index/bm25_rxnorm")
 RERANKER_MODEL_NAME = "Qwen/Qwen3-Reranker-0.6B"
+RERANKER_BATCH_SIZE = 8
 # k mỗi nhánh trước khi hợp nhất (union) rồi đưa toàn bộ qua reranker
 TOP_K_DENSE = 30
 TOP_K_BM25 = 30

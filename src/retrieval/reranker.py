@@ -24,7 +24,7 @@ import torch
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
 
-from configs.config import RERANKER_MODEL_NAME
+from configs.config import RERANKER_MODEL_NAME, RERANKER_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Qwen3Reranker:
     def __init__(
         self,
         model_name: str = RERANKER_MODEL_NAME,
-        batch_size: int = 32,
+        batch_size: int = RERANKER_BATCH_SIZE,
         device: str | None = None,
     ) -> None:
         self.batch_size = batch_size
