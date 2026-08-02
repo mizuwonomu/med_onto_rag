@@ -64,3 +64,25 @@
 - **`dense_search` is not a `Runnable`**, so the dense branch cannot be dropped into an LCEL chain as-is. Deliberate (see `decisions.md`), but it is a real constraint the NER integration will meet.
 - **`tests/retrieval/` is gitignored** (repo-wide `tests/` ignore, same as the ICD and index suites) — the 69 new tests will not be committed as configured.
 - **No provenance recorded** for the reranker model revision or the BM25 index build, mirroring the same gap already open for RxNorm and the vector index.
+
+## NER extraction layer
+
+- Date: 2026-08-02
+- `ner_extraction: IN PROGRESS -> features/ner_extraction/log.md`
+- **Benchmark stage only.** Every number so far comes from a 10-document hand-authored synthetic set. The organizer's `data/input/` (100 documents) has not been run even once, and no submission output has been produced.
+- Committed so far: `src/extract/` (schema, prompt, llm, align, linker), `src/pipeline.py`, `scripts/ner/serve_llm.sh`, config + pyproject. `scripts/ner/predict.py` and `run_ner_synthetic.py` are written and working but **not yet committed**; `build_synthetic.py`, `validate_ner_synthetic.py`, `scripts/README.md` and the synthetic data are intentionally kept out of version control.
+
+**Known limitations / debt left open:**
+
+- **Ten documents is not a sample, it is an anecdote.** 80 gold concepts, and whole categories appear once or twice — one `CHẨN_ĐOÁN`+`isHistorical`, one `THUỐC`+`isFamily`. No claim about the layer's accuracy survives contact with a larger set, and the current scores should be read as "the pipeline runs and is not obviously broken", nothing more.
+- **The prompt was tuned on the same ten documents it is scored against.** Three revisions each used the failing cases as new examples. Rounds one and two targeted errors that recurred across documents (framing, modifiers) and are defensible; anything further would be memorization. There is no held-out split, so the reported gain from 0.6917 to 0.8747 is a training-set number.
+- **Gold quality is unresolved and was found lacking in both directions.** Five labels were corrected during this work; separately, at least five genuine symptoms present in the text (`mệt mỏi`, `đau bụng`, `nôn ói`, `nóng rát sau xương ức`) are missing from gold and are currently scored as model hallucinations. The counts for "spurious" are therefore inflated by an unknown amount.
+- **The evaluation harness pairs greedily and can mis-assign.** The overlap pass walks predictions in order and takes the longest raw common substring, so an early short prediction can claim a gold that a later, better prediction needed — observed in `syn_008`, where a correct span carrying the right ICD code was pushed onto the wrong gold and scored zero. A Dice-normalized score with global (Hungarian) assignment was designed but not implemented.
+- **`wrong_type_count` under-reports.** It only counts a type error when the same text survives in both the missed and spurious lists, so any type error whose prediction gets absorbed by the overlap pass is silently invisible. It reported zero on a run that demonstrably contained one.
+- **ICD linking is weak and it is not this layer's fault.** `candidates_score` splits 0.719 RxNorm / 0.500 ICD, consistent with the reranker limitation already recorded under the retrieval feature. A distinct sub-case appears here: parent-vs-child confusion (`A09` returned where gold is `A09.0`) scores zero under Jaccard despite being one level away — arguably the most painful failure mode, and unaddressed.
+- **`--skip-link` output is not submittable** and nothing enforces that. It writes records without `candidates`; a run made for inspection could be submitted by accident. `predict.py` warns in the log and no further.
+- **No verification that all 100 outputs exist.** Documents that error are deliberately not written (an empty list would disguise an infrastructure failure as a zero score), but nothing counts the results afterwards, so a partial run can be mistaken for a complete one. Re-running fills gaps via skip-existing; remembering to re-run is manual.
+- **Context budget has no headroom check.** Prompt is ~4.2k tokens against `-c` 10132; the longest organizer document adds ~1.5k and `max_tokens` another 2048. Any prompt growth silently eats this margin, and the failure mode is a length error mid-run rather than a warning at startup.
+- **Token estimates are approximate.** All context arithmetic uses a measured ~3.2 characters-per-token ratio for Vietnamese rather than actual tokenization, so the margins above are rough.
+- **Retrieval is invoked per mention with no caching.** The same drug repeated across documents re-runs dense + BM25 + reranking every time. Irrelevant at this scale, a real cost at 100 documents.
+- **`tests/extract/` is gitignored** (same repo-wide `tests/` rule as earlier features), so the two smoke tests — one of which caught a silent Unicode offset bug — will not be committed.
