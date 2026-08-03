@@ -35,6 +35,7 @@ CHROMA_ADD_BATCH = 1024  # add_documents batch into Chroma
 BM25_ICD_DIR = Path("data/index/bm25_icd")
 BM25_RXNORM_DIR = Path("data/index/bm25_rxnorm")
 RERANKER_MODEL_NAME = "Qwen/Qwen3-Reranker-0.6B"
+RERANKER_BATCH_SIZE = 8
 # k mỗi nhánh trước khi hợp nhất (union) rồi đưa toàn bộ qua reranker
 TOP_K_DENSE = 30
 TOP_K_BM25 = 30
@@ -78,3 +79,29 @@ RETRIEVAL_THRESHOLDS = {
     "icd": {"floor": 1.490, "margin": 0.399, "query_variant": "raw", "status": "tentative"},
     "rxnorm": {"floor": 2.157, "margin": 0.0, "query_variant": "strip_dose", "status": "frozen"},
 }
+
+# NER extraction layer (extract/)
+#
+# Mô hình chạy tự host bằng llama.cpp (llama-server)
+NER_LLM_HF_REPO = "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
+NER_LLM_BASE_URL = "http://127.0.0.1:8080/v1"
+NER_LLM_TEMPERATURE = 0.0  # trích xuất là tác vụ tất định, không sampling
+NER_LLM_MAX_TOKENS = 3072 #max completion tokens
+NER_LLM_REPEAT_PENALTY = 1.05 #penalty cho các token lặp lại
+NER_LLM_REPEAT_LAST_N = 256 #số token nhìn lại 
+# Trần số khái niệm mỗi document, ép ở tầng GRAMMAR (extract/schema.py dịch nó
+# thành `maxItems` -> GBNF). Đây là thứ DUY NHẤT khiến grammar tự đóng mảng khi
+# model kẹt trong vòng lặp thoái hoá - max_tokens chỉ giới hạn thiệt hại, không
+# ngăn được vòng lặp.
+#
+# Số khái niệm TỐI ĐA cho phép sinh ra trong MỘT document. Đặt đủ rộng để không
+# cắt cụt một bệnh án dài thật. Chạm trần là DẤU HIỆU BẤT THƯỜNG (nhiều khả năng
+# đang lặp), không phải giới hạn cần nới - đọc output trước khi tăng.
+MAX_ENTITIES_PER_DOC = 100
+NER_SYNTHETIC_PATH = Path("data/test/ner/input_synthetic_10.jsonl")
+NER_EVAL_OUTPUT_DIR = Path("data/eval/ner")
+
+# Thư mục .txt của BTC - giữ nguyên cấu trúc `input/` bên trong file test.zip.
+# Tên file quyết định tên file nộp: `1.txt` -> `1.json`.
+NER_INPUT_DIR = Path("data/input/input")
+NER_OUTPUT_DIR = Path("data/output/ner")

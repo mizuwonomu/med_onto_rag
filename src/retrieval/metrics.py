@@ -9,8 +9,16 @@ rộng để bắt được multi_sibling / multi_solving. Nếu cài nhầm th�
 một dự đoán hoàn hảo cũng chỉ được 0.5 và toàn bộ bề mặt tối ưu bị bóp méo.
 
 Hai trường hợp biên (gt rỗng) được giữ nguyên theo spec dù tập synthetic hiện
-tại không có dòng nào gt rỗng - chúng sẽ xuất hiện khi nối với NER thật, lúc đó
-một mention bịa ra phải bị phạt 0 chứ không phải bỏ qua.
+tại không có dòng nào gt rỗng - chúng xuất hiện khi nối với NER thật, vì mọi
+khái niệm đều là một candidate `k` và loại không mang mã (TRIỆU_CHỨNG, hai loại
+xét nghiệm) có `gt = []`.
+
+GIỚI HẠN: `jaccard` KHÔNG tự phạt được mention bịa ra. Một TRIỆU_CHỨNG bịa có
+`gt = []` và `pred = []`, rơi vào nhánh rỗng-khớp-rỗng và được 1.0 - tự thưởng
+điểm cho một khái niệm không tồn tại trong gold. Muốn phạt thì phải biết cặp đó
+có ghép được hay không, mà đó là khái niệm của tầng NER chứ không phải tầng
+retrieval. Nên việc ép 0 nằm ở phía gọi (`scripts/ner/run_ner_synthetic.py`,
+hàm `_weighted_candidates`), và module này cố ý không biết gì về nó.
 """
 
 from __future__ import annotations
