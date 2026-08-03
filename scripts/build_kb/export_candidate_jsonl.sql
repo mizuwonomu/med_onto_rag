@@ -11,7 +11,7 @@ candidate_in AS (
         c.str
     FROM rxnconso c
     WHERE c.sab = 'RXNORM'
-      AND c.tty IN ('IN', 'SCD')
+      AND c.tty = 'IN'
       AND c.suppress = 'N'
 ),
 -- gom synonyms cùng rxcui: các cách viết khác trong RXNORM (SY, TMSY)
