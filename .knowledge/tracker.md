@@ -18,7 +18,7 @@
 ## RxNORM-etl Parser
 
 - Date: 2026-07-08 (granularity measured 2026-08-03)
-- `rxnorm-etl: IN PROGRESS -> features/rxnorm-etl/log.md`
+- `rxnorm-etl: IN PROGRESS (SCD widening evaluated and reverted 2026-08-03) -> features/rxnorm-etl_parser/log.md`
 
 **Term-type survey against the organizer's gold (2026-08-03, 13 RXCUIs).** Queried
 `rxnconso` directly for every drug code appearing in the organizer's worked examples:
@@ -117,6 +117,21 @@
 
 ## NER extraction layer
 
+- **SCOREBOARD LOG (2026-08-03).** Five submissions, NER layer identical to four decimal
+  places throughout (`WER 77.8966` / `J_assertion 26.7302` in every run), so each delta is
+  attributable to retrieval alone. Best configuration is the original one:
+
+  | KB | margin | variant | J_candidates | total |
+  |---|---|---|---|---|
+  | IN only | 0.0 | strip_dose | **9.1937** | **18.3275** |
+  | IN only | 0.0 | raw | **9.1937** | **18.3275** |
+  | IN only | 0.2 | raw | 9.1292 | 18.3017 |
+  | IN + SCD | 0.2 | raw | 8.3495 | 17.9899 |
+  | IN + SCD | 0.0 | raw | 8.1404 | 17.9063 |
+
+  Reading: KB granularity moved the score `-1.05`; `margin` moved it `±0.2` inconsistently;
+  query variant moved it `0.0000` (byte-identical). Threshold work on the RxNorm branch has
+  a measured ceiling of about `±0.08` on the final score. `WER` has never moved.
 - **FIRST REAL SCORE (organizer's scoreboard, 2026-08-02): `18.3275`** on 100/100 documents.
   `WER 77.8966` -> text 22.10 | `J_assertion 26.7302` | `J_candidates 9.1937`.
   Verified: `0.3*22.1034 + 0.3*26.7302 + 0.4*9.1937 = 18.327`, so the formula is read correctly
@@ -148,3 +163,13 @@
 - **15 pairs of overlapping spans** in the submission - the same concept emitted twice at different boundaries (`Cơn rối loạn ý thức thoáng qua` [132,162] and `rối loạn ý thức thoáng qua` [136,162]). Also removable deterministically: drop a span fully contained in another of the same type.
 - **The compliance flags explain only ~10% of records (195/1966) and cannot account for `WER 77.9`.** Something more systematic is wrong - most likely a concept-granularity mismatch with gold (the submission averages 19.7 concepts per document, one per ~103 characters, while the organizer's own worked example runs about four times denser). This is unmeasurable from our side; the only instrument is submitting a deliberate variant and comparing scores.
 - **`tests/extract/` is gitignored** (same repo-wide `tests/` rule as earlier features), so the two smoke tests — one of which caught a silent Unicode offset bug — will not be committed.
+
+**Measured 2026-08-03, after the SCD experiment:**
+
+- **The `24/157` dose split is measured on our own predictions, not on gold.** A drug mention the NER layer missed entirely is absent from that count, so the ratio is biased by whatever the extractor systematically drops.
+- **No gold exists for any bare drug name.** That bare names map to ingredient codes is inferred from score movement across five submissions, never observed. If it is wrong, the SCD revert is wrong with it.
+- **`floor = 2.157` has never been re-measured.** Every sweep this session held it fixed and varied `margin` only. It was calibrated on synthetic data at ingredient granularity and has no independent confirmation.
+- **`export_candidate_jsonl.sql` and the built index now disagree.** The SQL carries `tty IN ('IN','SCD')` while the KB in use is ingredient-only. Either revert the SQL or record why it differs; a future rebuild from that file silently reintroduces the regression.
+- **The dose-routing idea is untested.** Allowing SCD only for dose-bearing mentions would cap the loss at zero while keeping the 24-mention upside. Designed, never implemented, because the ceiling on the whole branch is about `±0.08` on the final score.
+- **Five scoreboard submissions were spent on a branch with a `±0.08` ceiling**, while `WER 77.8966` - carrying weight `0.3` against candidates' `0.4` - never moved and was never probed. Ten points of `text_score` are worth `+3` on the final score, roughly forty times the entire remaining headroom in candidates.
+- **The fixture has no ICD counterpart.** The same circularity applies to ICD thresholds, which were also calibrated on synthetic gold drawn from the KB under test.

@@ -21,3 +21,17 @@ Evaluation is stage-separated by design, because the organizer's single blended 
 The pipeline runs end to end on the hand-authored synthetic set: LLM extraction → position alignment → verbatim repair → type routing → retrieval → assembled records in the organizer's format. `predict.py` writes one `.json` per input document, skipping documents that already have output so an interrupted run resumes.
 
 Latest full measurement, 10 documents / 80 gold concepts: `text_score` 0.8634, `assertions_score` 0.9190, `candidates_score` 0.6670 (RxNorm 0.719 across 30 mentions, ICD 0.500 across 10), 74 of 80 concepts paired, zero type errors on that run. These figures come from an internal harness that is more lenient than the organizer's, and every number to date is from the synthetic benchmark — the layer has not yet been run against the organizer's `data/input/`.
+
+## Measurement session, 2026-08-03 (branch `evals`, `8bba52d`)
+
+This session was measurement, not construction. It began from a defect recorded in the previous handoff: the organizer's gold drug RXCUIs did not exist in the exported KB, so all 181 drug records were believed structurally incapable of scoring.
+
+The first move was to confirm the term type. The standing hypothesis was `SCDC`; querying `rxnconso` for the published gold refuted it - `1660761` is `SCD`, and a survey of all 13 gold RXCUIs found 12 present, 10 of them resolving to exactly one `SCD` row, with `nystatin` = `7597` a bare `IN`. Gold therefore mixes two granularities, which set the export filter to `tty IN ('IN','SCD')` rather than a replacement.
+
+Before rebuilding, a fixture was written against those 11 gold mentions, because the 399-row synthetic set could not answer the question being asked: its gold was drawn from the KB under test, so it can only confirm that the index contains what the index contains. The fixture measured `raw` at 3/11 and `strip_dose` at 0/11, and its `--show-rank` output showed gold sitting at rank 2 in six cases - a `margin` problem, not a retrieval one. A Jaccard sweep over `margin` peaked at `0.2`.
+
+The scoreboard disagreed with all of it. Five submissions, with an NER layer identical to four decimal places throughout, produced: ingredient KB + `margin 0` = 9.1937 (both `strip_dose` and `raw`, byte-identical); ingredient KB + `margin 0.2` = 9.1292; SCD KB + `margin 0.2` = 8.3495; SCD KB + `margin 0` = 8.1404. The KB change dominated every threshold effect by an order of magnitude, and it was negative.
+
+The explanation came from one count that could have been run at the very start: of 181 drug mentions in the existing submission, 24 carry a dose and 157 do not. The organizer's published examples are prescription lines with full dosing, so both the SCD hypothesis and the `margin` optimum were extrapolated from an unrepresentative sample. Adding 17,552 strength-level concepts could help at most 24 mentions while displacing the correct ingredient for up to 157.
+
+Outcome: the configuration is back where it started, and that is the result. What the session produced is exclusion - the RxNorm branch is not where `J_candidates` is lost, and threshold tuning on it has a measured ceiling of roughly ±0.2 on `J_candidates`, i.e. ±0.08 on the final score. The reusable artifact is `scripts/retrieval/fixture_rxnorm_gold.py`, which measures against gold our KB did not generate.
