@@ -75,9 +75,10 @@ Extract the SHORTEST substring that names the concept. Nothing more.
 A span is too long if you can delete words from either end and the remainder still names the same medical concept. Delete them.
 
 Strip from the span:
-- **Narrative framing**: `Gia đình em có bác ruột dã dùng thuốc điều trị sốt chưa rõ nguyên nhân` -> the concept is `sốt chưa rõ nguyên nhân`. The family context becomes `isFamily`, not part of the text.
+- **Narrative framing**: `Gia đình em có bác ruột dã dùng thuốc điều trị sốt chưa rõ nguyên nhân` -> the concept is `sốt`. The family context becomes `isFamily`, not part of the text.
 - **History framing**: `có tiền sử cá nhân có khối u lành tính` -> the concept is `khối u lành tính`. `có tiền sử` becomes `isHistorical`.
 - **Severity, duration, intensity modifiers**: `đau bụng thượng vị dữ dội liên lục` -> `đau bụng`. `sốt cao liên tục 3 ngày` -> `sốt`.
+- **Cause qualifiers on a symptom**: `sốt chưa rõ nguyên nhân` -> `sốt`. `đau cơ chưa rõ nguyên nhân` -> `đau cơ`. A symptom is the bare finding. Saying the cause is unknown adds no concept, and it does NOT make the phrase a diagnosis - it states that no diagnosis was reached.
 - **The method or apparatus around a test name**: `Chỉ số kiểm tra hơi thở UBT` -> `UBT`. `test Urease qua nội soi dạ dày` -> `test Urease`.
 - **Reporting verbs and subjects**: `bệnh nhân thấy mệt mỏi` -> `mệt mỏi`. `khám phát hiện bị tăng huyết áp` -> `tăng huyết áp`.
 - **Negation words**: `không ợ hơi` -> `ợ hơi` with `isNegated`. `không có hợp thị` -> `hợp thị` with `isNegated`.
@@ -182,7 +183,7 @@ Output:
   {{"text": "ho", "type": "TRIỆU_CHỨNG", "assertions": ["isNegated"]}},
   {{"text": "ra huyết âm đạo", "type": "TRIỆU_CHỨNG", "assertions": ["isNegated"]}},
   {{"text": "tăng huyết áp", "type": "CHẨN_ĐOÁN", "assertions": ["isHistorical"]}},
-  {{"text": "sốt chưa rõ nguyên nhân", "type": "CHẨN_ĐOÁN", "assertions": ["isFamily"]}},
+  {{"text": "sốt", "type": "TRIỆU_CHỨNG", "assertions": ["isFamily"]}},
   {{"text": "acetaminophen 500mg po bid", "type": "THUỐC", "assertions": []}},
   {{"text": "giảm đau", "type": "TRIỆU_CHỨNG", "assertions": []}}
 ]}}
@@ -204,7 +205,7 @@ Output:
   {{"text": "UBT", "type": "TÊN_XÉT_NGHIỆM"}},
   {{"text": "36,69", "type": "KẾT_QUẢ_XÉT_NGHIỆM"}},
   {{"text": "trào ngược dạ dày thực quản với viêm thực quản", "type": "CHẨN_ĐOÁN", "assertions": []}},
-  {{"text": "sốt chưa rõ nguyên nhân", "type": "CHẨN_ĐOÁN", "assertions": ["isFamily"]}}
+  {{"text": "sốt", "type": "TRIỆU_CHỨNG", "assertions": ["isFamily"]}}
 ]}}
 
 Note - study every span here:
@@ -213,7 +214,7 @@ Note - study every span here:
 - `đau bụng thượng vị dữ dội liên lục` -> only `đau bụng`. Location, severity and duration are all stripped.
 - `Chỉ số kiểm tra hơi thở UBT` -> only `UBT`. The measurement method is not part of the test name.
 - `trào ngược dạ dày thực quản với viêm thực quản` is kept WHOLE - it is one diagnosis under `Chẩn đoán xác định`, not two. Do not split it.
-- `Gia đình em có bác ruột dã dùng thuốc điều trị sốt chưa rõ nguyên nhân` -> only `sốt chưa rõ nguyên nhân`, marked `isFamily`.
+- `Gia đình em có bác ruột dã dùng thuốc điều trị sốt chưa rõ nguyên nhân` -> only `sốt`, marked `isFamily`. `chưa rõ nguyên nhân` is stripped and the type is `TRIỆU_CHỨNG`, not `CHẨN_ĐOÁN`: an unknown cause is the absence of a diagnosis, not a diagnosis.
 - Nothing was emitted for `Chào bác sĩ`, `mẹ em`, `Bệnh nhân nhập viện vì` - they name no medical concept."""
 
 PROMPT_PLACEHOLDER = "" #các biến placeholder tạm khác
