@@ -152,9 +152,12 @@ def align_positions(
 
     aligned: list[dict[str, Any]] = []
     seen: set[tuple[str, str, int]] = set()
+    dropped: list[str] = []
+    n_in = 0
     cursor = 0
 
     for ent in entities:
+        n_in += 1
         if isinstance(ent, dict):
             text, ent_type = ent.get("text", ""), ent.get("type")
             assertions = list(ent.get("assertions") or [])
@@ -166,7 +169,7 @@ def align_positions(
             raw_input, folded_raw, index_map, text, cursor
         )
         if span is None:
-            logger.debug("bỏ mention không tìm thấy trong input: %r", text)
+            dropped.append(str(text))
             continue
 
         start, end = span
@@ -185,5 +188,19 @@ def align_positions(
             }
         )
         cursor = end
+
+    # WARNING chứ không phải DEBUG. Mention bị bỏ ở đây mất TRỌN cả ba trường
+    # được chấm - text, assertions và candidates - và nó biến mất mà không để
+    # lại dấu vết nào trong file nộp bài: một document 20 khái niệm bị rơi 5
+    # trông y hệt một document chỉ có 15 khái niệm. Ở mức DEBUG thì mất mát này
+    # vô hình trong mọi lần chạy thật, vì các script chạy ở INFO.
+    if dropped:
+        logger.warning(
+            "align: bỏ %d/%d mention không định vị được trong văn bản: %s",
+            len(dropped),
+            n_in,
+            ", ".join(repr(t) for t in dropped[:5])
+            + (f" ... (+{len(dropped) - 5})" if len(dropped) > 5 else ""),
+        )
 
     return aligned
