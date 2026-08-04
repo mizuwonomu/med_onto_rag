@@ -132,7 +132,15 @@
   Reading: KB granularity moved the score `-1.05`; `margin` moved it `±0.2` inconsistently;
   query variant moved it `0.0000` (byte-identical). Threshold work on the RxNorm branch has
   a measured ceiling of about `±0.08` on the final score.
-- **BEST TO DATE: `18.4827`** (2026-08-04, `c8d3e7f`) - `align.postprocess` on the ingredient KB.
+- **BEST TO DATE: `18.6505`** (2026-08-04, `ner_prune_t1`, deterministic - no model re-run) -
+  `ner_foldnl` minus 36 wrong-type `KẾT_QUẢ` records (bare test names). `WER 77.4756` |
+  `J_assertion 27.1408` | `J_candidates 9.3773`. **First meaningful WER move, achieved by REMOVING
+  records** - the density question is answered: the submission emits **too many** concepts.
+- **`18.5607`** (2026-08-04, whitespace commit) - whitespace-tolerant `align.py`. `WER 77.6273` |
+  `J_assertion 26.9932` | `J_candidates 9.3773`. +16 records recovered (mentions the model glued
+  across line breaks / doubled spaces, previously dropped). Gain in `J_cand`/`J_assert`; WER flat
+  because recovered test-results are a small WER drag.
+- **`18.4827`** (2026-08-04, `c8d3e7f`) - `align.postprocess` on the ingredient KB.
   `WER 77.6252` | `J_assertion 26.9255` | `J_candidates 9.2314`. The first submission where all
   three metrics moved together, and the first time `WER` moved at all. `J_candidates` rose with
   **no change to retrieval**, so the gain is denominator-side: ~55 junk spans of 1946 removed.
@@ -187,3 +195,12 @@
 - **Span-length assumptions are unverified.** Every trim rule rests on gold being shorter than what the model emits, inferred from the organizer's examples, never confirmed.
 - **The trim rule deliberately under-cuts.** A correct trim leaving one word (`sốt cao` -> `sốt`) is now refused, because a wrong cut fabricates a concept while a missed cut costs only part of one WER. The size of what this gives up is unmeasured.
 - **`scripts/ner/check_submission.py` is untracked**, like the rest of `scripts/ner/` tooling. It is the only instrument that measures the 100 unlabelled documents, and it is the one most likely to be wanted again.
+
+**Measured 2026-08-04, over-emission confirmed (whitespace + prune session):**
+
+- **The submission emits too many concepts, not too few.** A deterministic prune of 36 wrong-type records raised text (`WER 77.6273 -> 77.4756`) AND assertions (`26.9932 -> 27.1408`) with no model re-run. `J_candidates` is flat and KB-blocked, so all remaining cheap headroom is in text and assertions, driven by the non-candidate types.
+- **`TRIỆU_CHỨNG` (47.9%, 940 records) is the largest untried prune reservoir**, but has no clean spuriousness signal - raw length is contaminated (`hoang tưởng như đang chiếm khí oxy của người khác` is a real symptom with a long span). Untried candidate signals: narrative markers (`như`, `khi`, commas), duplicate concepts across spans, existing compliance flags. 2 scoreboard slots left at session end.
+- **The prune is a pure JSON filter of `ner_foldnl` - it reuses all LLM + retrieval work.** This exposed that `predict.py` couples extraction and linking: producing a fresh submittable output re-runs the LLM. A `--from-output` link-only pass would decouple them (extract needs llama-server, link needs GPU backends, never both at once) and would let retrieval tuning re-link without re-extracting. Not built.
+- **Test-type structure is a dead lever.** Both the prompt (twice) and a deterministic retype fail on it: verdicts (`âm tính`) have no digit but are results, test names (`Protein niệu 24h`) have digits but are names, and dense lab panels make the model drop values. ~20% of entities, small ceiling. Dropped.
+- **The overlap-prune rule is unsafe as written and was removed from the probe.** It cut the coded `CHẨN_ĐOÁN 'mụn trứng cá'` (L73.0) and kept the bare `TRIỆU_CHỨNG 'mụn'`, because two spans sharing a start sort the shorter first and it dropped the "later" span. Cross-type overlap needs a keep-the-coded / keep-the-longer rule, not drop-the-later.
+- **`align.py` whitespace change is committed; `run_ner_synthetic.py` position-flag upgrade and `check_submission.py` remain untracked.** The `18.5607` and `18.6505` submission directories (`ner_foldnl`, `ner_prune_t1`) and the discarded `ner_labsplit_nolink` (skip-link probe) are on disk; keeping `ner_foldnl` intact is what made the deterministic prune possible.
