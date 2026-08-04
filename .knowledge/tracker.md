@@ -18,7 +18,7 @@
 ## RxNORM-etl Parser
 
 - Date: 2026-07-08 (granularity measured 2026-08-03)
-- `rxnorm-etl: IN PROGRESS -> features/rxnorm-etl/log.md`
+- `rxnorm-etl: IN PROGRESS (SCD widening evaluated and reverted 2026-08-03) -> features/rxnorm-etl_parser/log.md`
 
 **Term-type survey against the organizer's gold (2026-08-03, 13 RXCUIs).** Queried
 `rxnconso` directly for every drug code appearing in the organizer's worked examples:
@@ -117,6 +117,33 @@
 
 ## NER extraction layer
 
+- **SCOREBOARD LOG (2026-08-03).** Five submissions, NER layer identical to four decimal
+  places throughout (`WER 77.8966` / `J_assertion 26.7302` in every run), so each delta is
+  attributable to retrieval alone. Best configuration is the original one:
+
+  | KB | margin | variant | J_candidates | total |
+  |---|---|---|---|---|
+  | IN only | 0.0 | strip_dose | **9.1937** | **18.3275** |
+  | IN only | 0.0 | raw | **9.1937** | **18.3275** |
+  | IN only | 0.2 | raw | 9.1292 | 18.3017 |
+  | IN + SCD | 0.2 | raw | 8.3495 | 17.9899 |
+  | IN + SCD | 0.0 | raw | 8.1404 | 17.9063 |
+
+  Reading: KB granularity moved the score `-1.05`; `margin` moved it `±0.2` inconsistently;
+  query variant moved it `0.0000` (byte-identical). Threshold work on the RxNorm branch has
+  a measured ceiling of about `±0.08` on the final score.
+- **BEST TO DATE: `18.6505`** (2026-08-04, `ner_prune_t1`, deterministic - no model re-run) -
+  `ner_foldnl` minus 36 wrong-type `KẾT_QUẢ` records (bare test names). `WER 77.4756` |
+  `J_assertion 27.1408` | `J_candidates 9.3773`. **First meaningful WER move, achieved by REMOVING
+  records** - the density question is answered: the submission emits **too many** concepts.
+- **`18.5607`** (2026-08-04, whitespace commit) - whitespace-tolerant `align.py`. `WER 77.6273` |
+  `J_assertion 26.9932` | `J_candidates 9.3773`. +16 records recovered (mentions the model glued
+  across line breaks / doubled spaces, previously dropped). Gain in `J_cand`/`J_assert`; WER flat
+  because recovered test-results are a small WER drag.
+- **`18.4827`** (2026-08-04, `c8d3e7f`) - `align.postprocess` on the ingredient KB.
+  `WER 77.6252` | `J_assertion 26.9255` | `J_candidates 9.2314`. The first submission where all
+  three metrics moved together, and the first time `WER` moved at all. `J_candidates` rose with
+  **no change to retrieval**, so the gain is denominator-side: ~55 junk spans of 1946 removed.
 - **FIRST REAL SCORE (organizer's scoreboard, 2026-08-02): `18.3275`** on 100/100 documents.
   `WER 77.8966` -> text 22.10 | `J_assertion 26.7302` | `J_candidates 9.1937`.
   Verified: `0.3*22.1034 + 0.3*26.7302 + 0.4*9.1937 = 18.327`, so the formula is read correctly
@@ -148,3 +175,32 @@
 - **15 pairs of overlapping spans** in the submission - the same concept emitted twice at different boundaries (`Cơn rối loạn ý thức thoáng qua` [132,162] and `rối loạn ý thức thoáng qua` [136,162]). Also removable deterministically: drop a span fully contained in another of the same type.
 - **The compliance flags explain only ~10% of records (195/1966) and cannot account for `WER 77.9`.** Something more systematic is wrong - most likely a concept-granularity mismatch with gold (the submission averages 19.7 concepts per document, one per ~103 characters, while the organizer's own worked example runs about four times denser). This is unmeasurable from our side; the only instrument is submitting a deliberate variant and comparing scores.
 - **`tests/extract/` is gitignored** (same repo-wide `tests/` rule as earlier features), so the two smoke tests — one of which caught a silent Unicode offset bug — will not be committed.
+
+**Measured 2026-08-03, after the SCD experiment:**
+
+- **The `24/157` dose split is measured on our own predictions, not on gold.** A drug mention the NER layer missed entirely is absent from that count, so the ratio is biased by whatever the extractor systematically drops.
+- **No gold exists for any bare drug name.** That bare names map to ingredient codes is inferred from score movement across five submissions, never observed. If it is wrong, the SCD revert is wrong with it.
+- **`floor = 2.157` has never been re-measured.** Every sweep this session held it fixed and varied `margin` only. It was calibrated on synthetic data at ingredient granularity and has no independent confirmation.
+- **`export_candidate_jsonl.sql` and the built index now disagree.** The SQL carries `tty IN ('IN','SCD')` while the KB in use is ingredient-only. Either revert the SQL or record why it differs; a future rebuild from that file silently reintroduces the regression.
+- **The dose-routing idea is untested.** Allowing SCD only for dose-bearing mentions would cap the loss at zero while keeping the 24-mention upside. Designed, never implemented, because the ceiling on the whole branch is about `±0.08` on the final score.
+- **Five scoreboard submissions were spent on a branch with a `±0.08` ceiling**, while `WER 77.8966` - carrying weight `0.3` against candidates' `0.4` - never moved and was never probed. Ten points of `text_score` are worth `+3` on the final score, roughly forty times the entire remaining headroom in candidates.
+- **The fixture has no ICD counterpart.** The same circularity applies to ICD thresholds, which were also calibrated on synthetic gold drawn from the KB under test.
+
+**Measured 2026-08-04, after `align.postprocess`:**
+
+- **`postprocess` touches ~55 spans of 1946 (2.8%) and bought `+0.155`.** Extrapolating, perfect span hygiene is worth a few points at most. `WER 77.63` needs to fall by roughly twenty for the layer to change character, and nothing tried so far has touched its main cause.
+- **Three flag groups remain and none is reachable by string code.** `KẾT_QUẢ_XÉT_NGHIỆM` with no digits (48) is a type error - `chụp ct sọ`, `chọc dò dịch não tủy` are test names, and a type error costs double under the organizer's rule. Test phrases opening with a verb (43) need a human decision on whether `chụp ct sọ não` keeps its verb. `CHẨN_ĐOÁN`/`THUỐC` with no code (71) is mostly correct to leave empty (`kháng sinh`, `intravenous fluids`, redacted names), so forcing a code would trade zero for zero.
+- **`TRIỆU_CHỨNG` sits at 47.8% of records (935) and has not moved through any experiment.** No criterion exists to separate a real symptom from an invented one without gold, so the largest single category is also the one with no available instrument.
+- **The two test types are emitted in near-exact 1:1 pairs** (187/187, and 254/252 after a counter-example was added). Real notes contain ordered-but-unreported tests and free-standing values, so the pairing is few-shot imitation. It survived a direct attempt to break it.
+- **Span-length assumptions are unverified.** Every trim rule rests on gold being shorter than what the model emits, inferred from the organizer's examples, never confirmed.
+- **The trim rule deliberately under-cuts.** A correct trim leaving one word (`sốt cao` -> `sốt`) is now refused, because a wrong cut fabricates a concept while a missed cut costs only part of one WER. The size of what this gives up is unmeasured.
+- **`scripts/ner/check_submission.py` is untracked**, like the rest of `scripts/ner/` tooling. It is the only instrument that measures the 100 unlabelled documents, and it is the one most likely to be wanted again.
+
+**Measured 2026-08-04, over-emission confirmed (whitespace + prune session):**
+
+- **The submission emits too many concepts, not too few.** A deterministic prune of 36 wrong-type records raised text (`WER 77.6273 -> 77.4756`) AND assertions (`26.9932 -> 27.1408`) with no model re-run. `J_candidates` is flat and KB-blocked, so all remaining cheap headroom is in text and assertions, driven by the non-candidate types.
+- **`TRIỆU_CHỨNG` (47.9%, 940 records) is the largest untried prune reservoir**, but has no clean spuriousness signal - raw length is contaminated (`hoang tưởng như đang chiếm khí oxy của người khác` is a real symptom with a long span). Untried candidate signals: narrative markers (`như`, `khi`, commas), duplicate concepts across spans, existing compliance flags. 2 scoreboard slots left at session end.
+- **The prune is a pure JSON filter of `ner_foldnl` - it reuses all LLM + retrieval work.** This exposed that `predict.py` couples extraction and linking: producing a fresh submittable output re-runs the LLM. A `--from-output` link-only pass would decouple them (extract needs llama-server, link needs GPU backends, never both at once) and would let retrieval tuning re-link without re-extracting. Not built.
+- **Test-type structure is a dead lever.** Both the prompt (twice) and a deterministic retype fail on it: verdicts (`âm tính`) have no digit but are results, test names (`Protein niệu 24h`) have digits but are names, and dense lab panels make the model drop values. ~20% of entities, small ceiling. Dropped.
+- **The overlap-prune rule is unsafe as written and was removed from the probe.** It cut the coded `CHẨN_ĐOÁN 'mụn trứng cá'` (L73.0) and kept the bare `TRIỆU_CHỨNG 'mụn'`, because two spans sharing a start sort the shorter first and it dropped the "later" span. Cross-type overlap needs a keep-the-coded / keep-the-longer rule, not drop-the-later.
+- **`align.py` whitespace change is committed; `run_ner_synthetic.py` position-flag upgrade and `check_submission.py` remain untracked.** The `18.5607` and `18.6505` submission directories (`ner_foldnl`, `ner_prune_t1`) and the discarded `ner_labsplit_nolink` (skip-link probe) are on disk; keeping `ner_foldnl` intact is what made the deterministic prune possible.

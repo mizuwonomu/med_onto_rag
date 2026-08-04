@@ -57,4 +57,5 @@ exec "$LLAMA_SERVER" -hf "$MODEL_HF" \
     -ngl "$NGL" \
     -c "$CTX" \
     --host 127.0.0.1 \
-    --port "$PORT"
+    --port "$PORT" \
+    --flash-attn on
