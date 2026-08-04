@@ -24,13 +24,21 @@ Khi LLM liệt kê KHÔNG theo thứ tự văn bản, con trỏ trượt qua kh�
 có lần tìm lại từ 0. Đây là fallback đúng nhưng có giá: nó có thể gán trùng lại
 một offset đã dùng, nên bước dedupe cuối cùng phải chốt bằng `(text, type, start)`.
 
-VÌ SAO FUZZY LÀ NFC+CASEFOLD CHỨ KHÔNG PHẢI EDIT-DISTANCE
----------------------------------------------------------
-Sai khác thực tế của LLM hầu hết là chuẩn hoá Unicode (NFD vs NFC: "ố" một
-codepoint hay hai) và hoa/thường. Cả hai đều là ánh xạ TẤT ĐỊNH, không phải đoán.
-Một ngưỡng edit-distance thì ngược lại: nó sẽ vui vẻ gán "đau bụng" vào "đau
-lưng" ở đâu đó trong văn bản, tức là bịa ra một mention có vị trí hợp lệ - lỗi
-tệ hơn hẳn việc bỏ sót.
+VÌ SAO FUZZY LÀ NFC+CASEFOLD+GỘP-KHOẢNG-TRẮNG CHỨ KHÔNG PHẢI EDIT-DISTANCE
+-------------------------------------------------------------------------
+Sai khác thực tế của LLM có ba loại, cả ba đều là ánh xạ TẤT ĐỊNH chứ không phải
+đoán: chuẩn hoá Unicode (NFD vs NFC: "ố" một codepoint hay hai), hoa/thường, và
+KHOẢNG TRẮNG - model nuốt double-space ("nhịp  xoang" -> "nhịp xoang") hoặc dán
+hai dòng vật lý làm một ("Lactat (Acid\nLactic): 0.8" viết liền). Gộp mọi cụm
+khoảng trắng (kể cả \n) về đúng một space ở CẢ HAI vế rồi so chuỗi thường là đủ.
+
+Vì sao gộp khoảng trắng KHÔNG phải edit-distance trá hình: nó chỉ nối được hai
+cụm cách nhau THUẦN bằng khoảng trắng. "A B" khớp "A\n\nB" nhưng KHÔNG khớp
+"A x B" - chen một ký tự không-trắng vào là trượt. Nên nó không thể gán "đau
+bụng" vào "đau lưng" như một ngưỡng edit-distance sẽ làm; nó chỉ xoá sự phân
+biệt về SỐ LƯỢNG và LOẠI khoảng trắng - đúng thứ vô nghĩa với WER (chấm theo TỪ)
+và với position (không được BTC chấm). Span cứu được nhờ luật này vẫn giữ đúng
+vị trí thật trong raw, chỉ là biên bao trùm cả cái newline nằm giữa.
 
 RAW KHÔNG BAO GIỜ BỊ CHUẨN HOÁ
 ------------------------------
@@ -43,6 +51,7 @@ index-bản-sao -> index-raw, và mọi offset trả ra đều đi qua bảng đ
 from __future__ import annotations
 
 import logging
+import re
 import unicodedata
 from typing import Any, Iterable
 
@@ -79,8 +88,20 @@ _SEVERITY_BOUND = ("chuỗi",)
 _MIN_WORDS_AFTER_TRIM = 2
 
 
+# Một cụm khoảng trắng bất kỳ (space, tab, \n, lẫn lộn) coi như một space.
+_WS_RUN = re.compile(r"\s+")
+
+
 def _fold(s: str) -> str:
-    return unicodedata.normalize("NFC", s).casefold()
+    """NFC + casefold + gộp khoảng trắng. Cả ba TẤT ĐỊNH (xem docstring đầu file).
+
+    KHÔNG strip đầu/cuối: `_fold_with_map` dựng bảng ánh xạ theo PREFIX và dựa
+    vào tính đơn điệu "thêm ký tự vào cuối không rút ngắn phần đã fold". `re.sub`
+    gộp-về-một-space giữ được tính đó (thêm một ký tự trắng vào prefix đang kết
+    thúc bằng trắng thì độ dài folded không đổi); `strip()` thì phá nó, vì bỏ
+    trắng ở ĐẦU làm folded của prefix ngắn đi khi ký tự sau xuất hiện.
+    """
+    return _WS_RUN.sub(" ", unicodedata.normalize("NFC", s).casefold())
 
 
 def _fold_with_map(raw: str) -> tuple[str, list[int]]:
@@ -277,6 +298,20 @@ def postprocess(records: list[dict[str, Any]], raw_input: str) -> list[dict[str,
         seen.add(key)
         deduped.append(r)
     n_dup = len(out) - len(deduped)
+
+    # BƯỚC CUỐI: gộp khoảng trắng trong `text` xuất ra. Chạy SAU mọi phép tính
+    # dựa trên vị trí (_trim_severity, _drop_nested) nên không phá số học offset
+    # của chúng - `position` vẫn trỏ span raw thật (bao cả newline bên trong),
+    # còn `text` thì sạch cho WER.
+    #
+    # ĐÂY LÀ CHỖ DUY NHẤT bất biến `text == raw[start:end]` được cố ý nới: nới
+    # đúng ở khoảng trắng, GIỮ nguyên hoa/thường + chính tả của nguồn (vì text
+    # vẫn lấy từ lát raw, không phải chuỗi thô của LLM - cái verbatim contract
+    # làm tốt là snap về nguồn để sửa lỗi gõ của model, ta không vứt kèm).
+    # An toàn vì: position không được chấm, và WER tách theo TỪ nên \n với
+    # double-space vốn washout - gộp chỉ để chắc với tokenizer ngây thơ.
+    for r in deduped:
+        r["text"] = _WS_RUN.sub(" ", r["text"]).strip()
 
     if n_junk or n_trim or n_nested or n_dup:
         logger.info(
