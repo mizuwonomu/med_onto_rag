@@ -131,7 +131,11 @@
 
   Reading: KB granularity moved the score `-1.05`; `margin` moved it `±0.2` inconsistently;
   query variant moved it `0.0000` (byte-identical). Threshold work on the RxNorm branch has
-  a measured ceiling of about `±0.08` on the final score. `WER` has never moved.
+  a measured ceiling of about `±0.08` on the final score.
+- **BEST TO DATE: `18.4827`** (2026-08-04, `c8d3e7f`) - `align.postprocess` on the ingredient KB.
+  `WER 77.6252` | `J_assertion 26.9255` | `J_candidates 9.2314`. The first submission where all
+  three metrics moved together, and the first time `WER` moved at all. `J_candidates` rose with
+  **no change to retrieval**, so the gain is denominator-side: ~55 junk spans of 1946 removed.
 - **FIRST REAL SCORE (organizer's scoreboard, 2026-08-02): `18.3275`** on 100/100 documents.
   `WER 77.8966` -> text 22.10 | `J_assertion 26.7302` | `J_candidates 9.1937`.
   Verified: `0.3*22.1034 + 0.3*26.7302 + 0.4*9.1937 = 18.327`, so the formula is read correctly
@@ -173,3 +177,13 @@
 - **The dose-routing idea is untested.** Allowing SCD only for dose-bearing mentions would cap the loss at zero while keeping the 24-mention upside. Designed, never implemented, because the ceiling on the whole branch is about `±0.08` on the final score.
 - **Five scoreboard submissions were spent on a branch with a `±0.08` ceiling**, while `WER 77.8966` - carrying weight `0.3` against candidates' `0.4` - never moved and was never probed. Ten points of `text_score` are worth `+3` on the final score, roughly forty times the entire remaining headroom in candidates.
 - **The fixture has no ICD counterpart.** The same circularity applies to ICD thresholds, which were also calibrated on synthetic gold drawn from the KB under test.
+
+**Measured 2026-08-04, after `align.postprocess`:**
+
+- **`postprocess` touches ~55 spans of 1946 (2.8%) and bought `+0.155`.** Extrapolating, perfect span hygiene is worth a few points at most. `WER 77.63` needs to fall by roughly twenty for the layer to change character, and nothing tried so far has touched its main cause.
+- **Three flag groups remain and none is reachable by string code.** `KẾT_QUẢ_XÉT_NGHIỆM` with no digits (48) is a type error - `chụp ct sọ`, `chọc dò dịch não tủy` are test names, and a type error costs double under the organizer's rule. Test phrases opening with a verb (43) need a human decision on whether `chụp ct sọ não` keeps its verb. `CHẨN_ĐOÁN`/`THUỐC` with no code (71) is mostly correct to leave empty (`kháng sinh`, `intravenous fluids`, redacted names), so forcing a code would trade zero for zero.
+- **`TRIỆU_CHỨNG` sits at 47.8% of records (935) and has not moved through any experiment.** No criterion exists to separate a real symptom from an invented one without gold, so the largest single category is also the one with no available instrument.
+- **The two test types are emitted in near-exact 1:1 pairs** (187/187, and 254/252 after a counter-example was added). Real notes contain ordered-but-unreported tests and free-standing values, so the pairing is few-shot imitation. It survived a direct attempt to break it.
+- **Span-length assumptions are unverified.** Every trim rule rests on gold being shorter than what the model emits, inferred from the organizer's examples, never confirmed.
+- **The trim rule deliberately under-cuts.** A correct trim leaving one word (`sốt cao` -> `sốt`) is now refused, because a wrong cut fabricates a concept while a missed cut costs only part of one WER. The size of what this gives up is unmeasured.
+- **`scripts/ner/check_submission.py` is untracked**, like the rest of `scripts/ner/` tooling. It is the only instrument that measures the 100 unlabelled documents, and it is the one most likely to be wanted again.

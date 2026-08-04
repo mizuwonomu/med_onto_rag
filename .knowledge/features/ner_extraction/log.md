@@ -35,3 +35,19 @@ The scoreboard disagreed with all of it. Five submissions, with an NER layer ide
 The explanation came from one count that could have been run at the very start: of 181 drug mentions in the existing submission, 24 carry a dose and 157 do not. The organizer's published examples are prescription lines with full dosing, so both the SCD hypothesis and the `margin` optimum were extrapolated from an unrepresentative sample. Adding 17,552 strength-level concepts could help at most 24 mentions while displacing the correct ingredient for up to 157.
 
 Outcome: the configuration is back where it started, and that is the result. What the session produced is exclusion - the RxNorm branch is not where `J_candidates` is lost, and threshold tuning on it has a measured ceiling of roughly ±0.2 on `J_candidates`, i.e. ±0.08 on the final score. The reusable artifact is `scripts/retrieval/fixture_rxnorm_gold.py`, which measures against gold our KB did not generate.
+
+## Span cleanup session, 2026-08-04 (branch `evals`, `c8d3e7f`)
+
+The RxNorm session had closed with a measured ceiling of about ±0.08 on the final score for anything in the retrieval branch, and with `WER 77.8966` untouched across five submissions while carrying weight 0.3. This session moved to the extraction layer.
+
+The instrument came first. `check_compliance` already scored output against the layer's own rules rather than against gold, but it only ran inside the synthetic harness; `scripts/ner/check_submission.py` was written as a thin adapter so the same checks run over the 100 unlabelled organizer documents. It reports the type distribution, the rule flags, and span length per type. Nothing in it is a verdict - each flag marks a place a human should look.
+
+The first run gave the shape of the problem: 1966 records, 19.7 per document, `TRIỆU_CHỨNG` at 47.8%, and `TÊN_XÉT_NGHIỆM` exactly equal to `KẾT_QUẢ_XÉT_NGHIỆM` at 187 each. That equality is not something independent categories produce; it is the model reproducing the 1:1 pairing shown in every few-shot example. Span lengths were long against the organizer's own examples: `CHẨN_ĐOÁN` averaged 4.82 words where published gold runs two or three.
+
+Two rounds followed, and the contrast between them is the finding.
+
+The first round put the rules in the prompt: a sharper severity-trimming rule with the failing phrases as examples, a redefinition of `KẾT_QUẢ_XÉT_NGHIỆM` as a measured value, and a fifth few-shot showing tests without results. It made things worse. Severity violations went `81 -> 80`. The `KẾT_QUẢ` flag **doubled** to 91, because admitting `âm tính` as a valid result taught the model that results need no digits without teaching it where the span ends. Total records rose to 2172 while the goal was to remove surplus. The prompt was reverted whole.
+
+The second round put the same intent in `align.py` as `postprocess()`: drop asterisk-only spans, drop a span nested inside another of the same type, trim a trailing severity adverb. A first version over-trimmed - comparing the two output directories record by record showed `tiểu ít -> tiểu`, `sốt nhẹ -> sốt`, `uống nhiều -> uống`, each destroying a named symptom. The fix was to stop enumerating exceptions and instead require two words to survive the cut, a condition that holds for every observed correct trim and fails for every observed wrong one.
+
+Outcome: the first submission in which all three metrics moved together - `WER 77.8966 -> 77.6252`, `J_assertion 26.7302 -> 26.9255`, `J_candidates 9.1937 -> 9.2314`, total `18.3275 -> 18.4827`. `J_candidates` rose with no change to retrieval at all, which is only possible if the denominator shrank: deleting a junk span is a gain in all three metrics, the mirror of the dropped-mention rule. It is also the first evidence on the density question - the submission carries surplus concepts rather than missing them. The effect is small because `postprocess` touches about 55 spans of 1946.
